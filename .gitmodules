@@ -1,0 +1,9 @@
+[submodule "backend"]
+	path = backend
+	url = git@github.com:yj0604park/finance.git
+	branch = main
+
+[submodule "frontend-v2"]
+	path = frontend-v2
+	url = git@github.com:yj0604park/finance-frontend-v2.git
+	branch = frontend-v2
