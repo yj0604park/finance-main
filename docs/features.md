@@ -55,7 +55,8 @@
 - (TODO) 잔액 일간 변화 그래프 — 거래의 `balance` 필드로 구성 가능
 
 **할 수 있는 것:**
-- "거래 추가" 버튼으로 새 거래 생성 (금액, 날짜, 가맹점, 메모, 내부이체 여부)
+- "거래 추가" 버튼 → 계좌 상세 페이지 인라인 섹션으로 폼 펼침 (모달 아님)
+  - 안 되는 경우 모달로 fallback
 - "미검토만" 토글로 미검토 거래만 필터링
 - 거래 행의 원형 버튼 클릭 → 검토 완료 처리 (REST API, 단방향)
 - 페이지 이동 (이전/다음, 50건씩)
@@ -65,6 +66,81 @@
 - 분류는 한글 레이블로 표시된다 (CATEGORY_LABELS 사용)
 - 검토 완료된 거래는 흐리게 표시되고 버튼이 비활성화된다
 - 검토 완료 취소(toggle off)는 이 페이지에서 지원하지 않는다 (거래 상세 페이지에서 처리 예정)
+
+### 거래 추가 폼 (Bulk Input)
+
+**UX 구조:**
+- 다이얼로그가 아닌 인라인 영역(또는 큰 모달)에 테이블 형태 행 입력
+- 기본 1행, "행 추가(+)" 버튼으로 행을 추가함
+- "제출" 누르면 모든 행을 한꺼번에 제출 (각 행 독립적으로 mutation 호출)
+- 오류 발생한 행은 빨간 테두리 + 오류 메시지 표시, 나머지 행은 계속 제출됨
+- 성공한 행은 목록에서 제거(or 회색 처리), 실패한 행만 남아 재시도 가능
+
+**필드 (행당):**
+
+| 필드 | 비고 |
+|---|---|
+| 금액 | 아래 상세 참조 |
+| 날짜 | 아래 상세 참조 |
+| 거래 유형(type) | 아래 상세 참조 |
+| 가맹점(retailer) | 아래 상세 참조 |
+| 메모(note) | 자유 텍스트 |
+| 내부이체(isInternal) | 체크박스/토글 — on이면 type=TRANSFER 강제, retailer 비워짐 (수정 불가) |
+| 행 삭제 버튼 | 해당 행 제거 |
+
+**내부이체(isInternal) 토글 동작:**
+- ON으로 전환 시:
+  - `type` → TRANSFER 강제 설정, 필드 disabled (수정 불가)
+  - `retailer` → 빈 값으로 초기화, 필드 disabled (수정 불가)
+- OFF로 전환 시:
+  - `type` → ETC로 리셋 (retailer 재선택 시 auto-fill 다시 동작)
+  - `retailer` → 필드 다시 활성화
+
+**금액 입력 UX:**
+- 지출 = 음수, 수입 = 양수
+- 부호 토글 버튼(±) 제공 — 클릭 시 부호 전환
+- 숫자 입력 중 `-` 키 입력 시 부호 토글 (숫자의 일부로 처리하지 않음)
+  - 예: `3` → `2` → `-` → `.` → `2` 입력 시 결과는 `-32.2`
+- 경고(warning) 표시 조건:
+  - 거래 유형이 지출성(EAT_OUT, GROCERY, CLOTHING, TRANSPORTATION, MEDICAL, LEISURE, SERVICE, MEMBERSHIP, HOUSING, DAILY_NECESSITY)인데 금액이 양수 → "지출 항목인데 양수입니다. 환불이라면 무시하세요"
+  - 거래 유형이 수입성(INCOME, SALARY)인데 금액이 음수 → "수입 항목인데 음수입니다"
+  - TRANSFER, STOCK, CASH 등은 부호 제한 없음
+
+**날짜 입력 UX:**
+- 폼 최초 열 때 기본값: 이 계좌의 마지막 transaction 날짜 (ID 기준 max → 가장 최근에 추가된 row의 날짜)
+  - 오늘 날짜가 아님 — 과거 내역을 소급 입력하는 경우가 많기 때문
+- 행 추가 시 기본값: 바로 위 행의 날짜 복사
+- 날짜 입력 필드 옆에 **-1일 / +1일 버튼** 제공
+  - 같은 날짜의 다른 거래 → 그대로 행 추가
+  - 다음 날로 넘어갈 때 → +1일 클릭 한 번으로 이동
+  - 전날로 소급할 때 → -1일 클릭
+- 날짜는 행별로 독립적으로 관리됨 (같은 폼에서 여러 날짜 혼재 가능)
+
+**거래 유형(type) 입력 UX:**
+- 가맹점 선택 시 해당 retailer의 `category` 필드로 자동 설정됨
+  - `Retailer.category`가 그 가맹점의 default transaction type
+  - 파이브가이즈 선택 → type이 EAT_OUT으로 자동 채워짐
+- 자동 설정 후 수동으로 변경 가능 (진리가 아님, override 허용)
+- 선택지: CATEGORY_LABELS 기준 한글 표시
+
+**가맹점(retailer) 입력 UX:**
+- **Combobox (타이핑 검색 + 드롭다운)** — 이름이 영어/한국어/약자 혼재, 전체 목록 탐색 불가
+  - 타이핑하면 fuzzy match로 후보 목록 필터링
+  - 전체 retailer 목록은 클라이언트에서 검색 (서버 검색 아님)
+- **Retailer 목록 로딩 전략: 앱 레벨 캐싱**
+  - 입력창 열 때마다 재로드 하지 않음 — retailer는 자주 바뀌지 않으므로
+  - 앱 초기화 시 또는 첫 번째 필요 시점에 전체 목록을 한번만 로드
+  - pagination이지만 retailer 수가 제한적이므로 `first: 1000` 으로 단일 요청 처리
+  - Apollo 캐시에 저장되어 이후 요청은 캐시 히트
+  - **인라인 retailer 신규 생성 시**: Apollo 캐시에 새 retailer를 직접 추가 (`cache.modify`) → 재로드 없이 즉시 목록에 반영
+- isInternal=true 이면 비활성
+- **인라인 retailer 생성**: 검색 결과 없을 때 "새 가맹점 추가" 옵션 표시
+  - 클릭 시 retailer 생성 폼이 인라인으로 열림 (모달 중첩 없이)
+  - retailer 생성 폼 컴포넌트를 `/retailers` 페이지와 **공유** (중복 제거)
+    - `CreateRetailerForm` 로직을 별도 컴포넌트로 추출 (`/features/retailers/create-retailer-form.tsx`)
+    - retailers-page.tsx의 `CreateRetailerDialog`와 transaction 폼 모두 이를 사용
+  - 생성 완료 시: 새 retailer가 자동 선택되고 type도 category로 자동 설정
+  - transaction 입력 내용(금액, 날짜, 메모 등) 그대로 유지됨
 
 ---
 
@@ -302,6 +378,91 @@
 
 ---
 
+## 주식 거래 추가 폼 (StockTransaction)
+
+**진입점:** 계좌 상세 페이지 (`/accounts/:accountId`) — 해당 계좌가 증권 계좌인 경우 "주식 거래 추가" 버튼 제공
+
+**입력 필드:**
+
+| 필드 | 설명 |
+|---|---|
+| 종목 (stock) | Combobox — 아래 상세 참조 |
+| 날짜 (date) | 일반 거래 폼과 동일한 UX (계좌의 마지막 거래 날짜 기본값, ±1일 버튼) |
+| 단가 (price) | 1주당 가격 |
+| 수량 (shares) | 양수 = 매수, 음수 = 매도 |
+| 총액 (amount) | 아래 상세 참조 |
+| 메모 (note) | 자유 텍스트 |
+
+**부호 규칙 (헷갈리기 쉬움 — 반드시 준수):**
+
+| | 매수 (Buy) | 매도 (Sell) |
+|---|---|---|
+| `shares` | **+** (주식 취득) | **-** (주식 처분) |
+| `price` | + (항상 양수, 단가) | + (항상 양수, 단가) |
+| `StockTransaction.amount` | **-** (현금 유출) | **+** (현금 유입) |
+| `Transaction.amount` | **-** (계좌에서 빠짐) | **+** (계좌로 들어옴) |
+
+- `StockTransaction.amount`와 `Transaction.amount`는 **항상 같은 부호, 같은 값** (audit에서 검증)
+- `shares`와 `amount`는 **항상 반대 부호**: shares+ → amount-, shares- → amount+
+
+**총액(amount) 계산 UX:**
+- `shares` 부호로 amount 부호 자동 결정: `shares > 0` → amount 음수, `shares < 0` → amount 양수
+- 절대값 계산: `|price × shares|`로 자동 채움
+- 수수료·소수점 차이를 반영하기 위해 사용자가 절대값 부분만 직접 수정 가능 (부호는 shares 기준 자동 유지)
+- **3-필드 연동 규칙** (price, shares, amount 절대값 중 하나가 비었을 때만 자동 계산):
+  - price와 shares 입력 → amount 자동 계산
+  - price와 amount 입력 + shares 비어있음 → shares 자동 계산
+  - shares와 amount 입력 + price 비어있음 → price 자동 계산
+  - 셋 다 채워진 상태에서 하나를 수정하면 나머지를 자동으로 건드리지 않음 (무한루프 방지)
+- **경고 표시**: `|price × shares| - |amount|` / `|amount| > 0.5%` 이면 "단가 × 수량과 총액 차이가 큽니다" 워닝
+- **부호 불일치 경고**: shares와 amount 부호가 위 규칙에 어긋나면 즉시 경고 (저장 차단은 안 함)
+
+**저장 시나리오 — 입력 폼에서 선택:**
+
+| 시나리오 | 언제 | 처리 |
+|---|---|---|
+| A. 둘 다 신규 | 주식 거래 + 현금 내역 동시에 없는 경우 | Transaction 생성 → StockTransaction 생성 + 연결 |
+| B. Transaction 이미 있음 | 은행 내역 import로 현금 거래는 기록됐는데 주식 디테일이 없는 경우 | StockTransaction만 생성, 기존 Transaction 검색해서 연결 |
+| C. StockTransaction 이미 있음 | 반대로 주식 거래만 기록됐고 Transaction 링크 없는 경우 | 링크 연결 페이지에서 처리 (아래 참조) |
+
+**시나리오 A (기본값):** 폼 하단에 "현금 거래 직접 입력" 토글 ON
+- Transaction 생성 후 StockTransaction 생성 + 연결
+- 두 단계 중 하나가 실패하면 오류 표시
+- **고아 레코드 허용**: 당분간 연결 안 된 상태로 존재할 수 있음 — review 링크 연결 페이지에서 수동 연결, audit에서 감지
+
+**시나리오 B:** 폼 하단 "이미 입력된 거래와 연결" 토글 ON
+- 현재 계좌의 `type=STOCK` 거래 목록 검색/선택 (날짜, 금액으로 필터)
+- 선택한 Transaction ID를 related_transaction으로 사용
+- 총액 필드에 선택한 Transaction의 금액이 자동으로 채워짐 (수정 가능)
+
+**링크 연결 페이지 (review 섹션 — 아래 별도 정의):**
+- 시나리오 C (StockTransaction만 있고 Transaction 없음) 처리
+- 미연결 항목끼리 매칭 UI 제공
+
+**종목(stock) 입력 UX:**
+- Combobox (타이핑 검색) — ticker 또는 회사명 둘 다 검색 가능
+  - 예: `msft` 또는 `microsoft` 입력 → Microsoft 종목 매칭
+  - 표시 형식: `MSFT — Microsoft` (ticker 앞, 이름 뒤)
+  - 검색은 ticker와 name 필드 모두에 대해 case-insensitive substring 매칭 (클라이언트 필터)
+- **종목 목록 로딩 전략: retailer와 동일하게 앱 레벨 캐싱**
+  - 폼 열 때마다 재로드 하지 않음
+  - `first: 1000` 단일 요청으로 전체 목록 로드, Apollo 캐시 재사용
+  - 인라인 신규 추가 시 Apollo 캐시에 직접 추가 (`cache.modify`) → 즉시 반영
+- 검색 결과 없을 때 "새 종목 추가" → 인라인 폼 (ticker, name, currency)
+  - `Stock` 생성용 `CreateStockForm`을 `/stocks` 페이지의 생성 폼과 공유
+
+**링크 네비게이션:**
+- `Transaction(type=STOCK)` 상세 페이지 → 연결된 `StockTransaction` 정보 표시 및 링크
+- `StockTransaction` 목록 (계좌 상세 내) → 연결된 `Transaction` 날짜/금액 표시 및 링크
+- 연결 없으면 "미연결 — 연결 페이지로 이동" 버튼 표시
+
+**audit 연계:**
+- `StockTransaction`에 `related_transaction`이 없으면 audit 페이지 1-A 섹션에서 표시
+- `Transaction(type=STOCK)`인데 StockTransaction 링크 없으면 동일하게 표시
+- 금액/부호 불일치도 audit에서 감지
+
+---
+
 ## /review
 
 **목적:** 미검토 거래를 확인하고 검토 완료 처리한다. 거래 타입에 따라 검토 조건이 다르다.
@@ -424,16 +585,45 @@
 
 **목적:** 연결 누락 거래 감지 + Income(Salary) 데이터 품질 검토.
 
+### 0. 계좌 데이터 이상 (구현됨)
+
+- 비활성 계좌 중 잔고가 0이 아닌 항목 → 클릭 시 계좌 상세로 이동
+
 ### 1. 거래 연결 감사
 
 **볼 수 있는 것:**
 - Income 거래 중 연결된 `Salary` 레코드가 없는 항목
 - Internal 거래 중 `related_transaction`이 없는 항목
 - FX 거래 중 `Exchange` 레코드가 없는 항목
+- **Internal 거래 데이터 불일치**: `isInternal=true`인데 `type ≠ TRANSFER` 이거나 `retailer`가 있는 항목
+- **주식 거래 연결 불일치**:
+  - `Transaction(type=STOCK)`인데 연결된 `StockTransaction`이 없는 항목
+  - `StockTransaction`인데 `related_transaction`이 없는 항목
+  - 연결은 됐지만 금액 불일치: `StockTransaction.amount ≠ Transaction.amount`
+  - 연결은 됐지만 부호 불일치:
+    - `shares > 0` (매수)인데 `Transaction.amount > 0` (돈이 들어온 것으로 기록)
+    - `shares < 0` (매도)인데 `Transaction.amount < 0` (돈이 나간 것으로 기록)
+    - `StockTransaction.amount`와 `Transaction.amount` 부호가 다름
 
 **목표:**
 - 각 항목에서 바로 연결 액션 수행 가능
 - 누락 건수 대시보드 표시
+
+### 1-A. 주식 거래 ↔ Transaction 링크 연결 페이지 (미구현)
+
+**목적:** `StockTransaction`과 `Transaction(type=STOCK)` 중 한쪽만 있고 연결이 없는 항목을 매칭해서 연결한다.
+
+**볼 수 있는 것:**
+- 좌측: `related_transaction`이 없는 `StockTransaction` 목록 (날짜, 종목, 수량, 총액)
+- 우측: 연결된 `StockTransaction`이 없는 `Transaction(type=STOCK)` 목록 (날짜, 계좌, 금액)
+
+**할 수 있는 것:**
+- 날짜/금액 기준으로 자동 매칭 후보 제시 (날짜 동일 + 금액 근사)
+- 수동으로 StockTransaction 하나와 Transaction 하나를 선택해서 연결
+- 연결 시 금액/부호 불일치 경고 표시 (연결 차단하지는 않음)
+
+**연결 방법 (백엔드):**
+- `updateStockTransaction` mutation 필요 (현재 미구현) — `related_transaction` 필드만 업데이트
 
 ### 2. Salary 데이터 품질 감사
 
