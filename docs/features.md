@@ -109,6 +109,10 @@
 **날짜 입력 UX:**
 - 폼 최초 열 때 기본값: 이 계좌의 마지막 transaction 날짜 (ID 기준 max → 가장 최근에 추가된 row의 날짜)
   - 오늘 날짜가 아님 — 과거 내역을 소급 입력하는 경우가 많기 때문
+- 기본값 날짜가 오늘 기준 얼마나 과거인지 색상으로 표시:
+  - 30일 이내: 기본색
+  - 30~90일: 주황색 + "N일 전 기록 기준"
+  - 90일 초과: 빨간색 + "N일 전 기록 기준 — 맞는지 확인하세요"
 - 행 추가 시 기본값: 바로 위 행의 날짜 복사
 - 날짜 입력 필드 옆에 **-1일 / +1일 버튼** 제공
   - 같은 날짜의 다른 거래 → 그대로 행 추가
@@ -117,6 +121,8 @@
 - 날짜는 행별로 독립적으로 관리됨 (같은 폼에서 여러 날짜 혼재 가능)
 
 **거래 유형(type) 입력 UX:**
+- STOCK type 선택 허용 — 증권 계좌 현금 흐름을 일반 거래로 먼저 입력하거나, 증권사 내역 덤프 로드 시나리오에서 필요
+  - 다만 STOCK type 입력 시 soft 경고: "주식 거래 폼에서 입력하면 StockTransaction과 자동 연결됩니다"
 - 가맹점 선택 시 해당 retailer의 `category` 필드로 자동 설정됨
   - `Retailer.category`가 그 가맹점의 default transaction type
   - 파이브가이즈 선택 → type이 EAT_OUT으로 자동 채워짐
@@ -134,8 +140,12 @@
   - Apollo 캐시에 저장되어 이후 요청은 캐시 히트
   - **인라인 retailer 신규 생성 시**: Apollo 캐시에 새 retailer를 직접 추가 (`cache.modify`) → 재로드 없이 즉시 목록에 반영
 - isInternal=true 이면 비활성
+- **행 추가 시 retailer 복사 안 함** (날짜만 복사)
+  - retailer가 복사되면 실수로 잘못된 retailer가 연결될 위험이 있음
+  - 빈 상태면 폼 validation에서 경고를 줄 수 있어 더 안전
 - **인라인 retailer 생성**: 검색 결과 없을 때 "새 가맹점 추가" 옵션 표시
-  - 클릭 시 retailer 생성 폼이 인라인으로 열림 (모달 중첩 없이)
+  - 클릭 시 **mini side panel** 로 retailer 생성 폼 열림 (테이블 레이아웃 깨지지 않게)
+  - side panel이 어려운 경우 popover로 fallback
   - retailer 생성 폼 컴포넌트를 `/retailers` 페이지와 **공유** (중복 제거)
     - `CreateRetailerForm` 로직을 별도 컴포넌트로 추출 (`/features/retailers/create-retailer-form.tsx`)
     - retailers-page.tsx의 `CreateRetailerDialog`와 transaction 폼 모두 이를 사용
@@ -380,7 +390,9 @@
 
 ## 주식 거래 추가 폼 (StockTransaction)
 
-**진입점:** 계좌 상세 페이지 (`/accounts/:accountId`) — 해당 계좌가 증권 계좌인 경우 "주식 거래 추가" 버튼 제공
+**진입점:** 계좌 상세 페이지 (`/accounts/:accountId`) — `AccountType.STOCK`인 계좌에서만 "주식 거래 추가" 버튼 표시
+- 다른 타입의 계좌에서 주식 거래를 하려면 계좌 타입을 STOCK으로 변경하도록 안내
+- (계좌 수정 다이얼로그에서 type 변경 가능 — 이미 구현됨)
 
 **입력 필드:**
 
@@ -414,7 +426,8 @@
   - price와 amount 입력 + shares 비어있음 → shares 자동 계산
   - shares와 amount 입력 + price 비어있음 → price 자동 계산
   - 셋 다 채워진 상태에서 하나를 수정하면 나머지를 자동으로 건드리지 않음 (무한루프 방지)
-- **경고 표시**: `|price × shares| - |amount|` / `|amount| > 0.5%` 이면 "단가 × 수량과 총액 차이가 큽니다" 워닝
+- **경고 표시**: `|price × shares| - |amount|` / `|amount| > 0.5%` 이면 "단가 × 수량과 총액 차이가 큽니다 [총액 재계산]" 워닝
+  - [총액 재계산] 버튼 클릭 시 `price × |shares|`로 amount 덮어씀
 - **부호 불일치 경고**: shares와 amount 부호가 위 규칙에 어긋나면 즉시 경고 (저장 차단은 안 함)
 
 **저장 시나리오 — 입력 폼에서 선택:**
@@ -426,12 +439,14 @@
 | C. StockTransaction 이미 있음 | 반대로 주식 거래만 기록됐고 Transaction 링크 없는 경우 | 링크 연결 페이지에서 처리 (아래 참조) |
 
 **시나리오 A (기본값):** 폼 하단에 "현금 거래 직접 입력" 토글 ON
+- 생성되는 Transaction: `type=STOCK, isInternal=false, amount=총액(부호 포함)`
 - Transaction 생성 후 StockTransaction 생성 + 연결
 - 두 단계 중 하나가 실패하면 오류 표시
 - **고아 레코드 허용**: 당분간 연결 안 된 상태로 존재할 수 있음 — review 링크 연결 페이지에서 수동 연결, audit에서 감지
 
 **시나리오 B:** 폼 하단 "이미 입력된 거래와 연결" 토글 ON
 - 현재 계좌의 `type=STOCK` 거래 목록 검색/선택 (날짜, 금액으로 필터)
+- 이미 다른 StockTransaction에 연결된 Transaction은 비활성(disabled) 표시 — 중복 연결 방지
 - 선택한 Transaction ID를 related_transaction으로 사용
 - 총액 필드에 선택한 Transaction의 금액이 자동으로 채워짐 (수정 가능)
 
@@ -476,6 +491,7 @@
 | FX 환전 (Internal, 다른 통화) | `Exchange` 레코드 연결 필요 | 연결 없으면 완료 불가 |
 | Income | 금액·날짜 근접 `Salary` 레코드 연결 필요 | 연결 없으면 완료 불가 |
 | Amazon | 연결된 AmazonOrder 있는지 소프트 확인 | 경고 표시 (완료 가능, 금액 오차 허용) |
+| STOCK | 연결된 `StockTransaction`이 있는지 확인 | 없으면 경고 표시 (완료는 가능 — 증권사 내역 덤프 입력 시나리오 존재) |
 
 **Internal transfer 매칭 규칙:**
 - 같은 통화: 금액 일치 + 날짜 근접 (한국 은행은 당일만, 미국 은행은 몇 business day 허용)
@@ -641,6 +657,39 @@
 **할 수 있는 것:**
 - 키 rename: 특정 키를 다른 이름으로 일괄 변경 (해당 키를 가진 모든 Salary 기록에 적용)
 - Salary 금액 검증: `gross_pay - total_withheld - total_deduction + total_adjustment ≈ net_pay` 확인, 오차 있는 항목 플래그
+
+---
+
+## /audit — 데이터 입력 완성도 체크리스트 (미구현)
+
+**목적:** 계좌별로 어느 월의 거래 내역이 입력됐는지 확인해서 누락된 기간을 파악한다.
+
+**배경:** 계좌 오픈 시점부터 모든 내역을 순서대로 입력하지 않는 경우가 많음.
+- 2026년 1월 잔고를 먼저 기록하고 2025년 내역을 나중에 소급 입력
+- 여러 계좌가 있어서 어떤 계좌의 어느 기간이 비어있는지 전체 조망이 필요
+
+**볼 수 있는 것:**
+- 계좌 × 월 매트릭스 테이블 (행: 계좌, 열: 연/월)
+  - 셀: 해당 월 거래 건수 (0이면 빈칸 또는 다른 색 표시)
+  - 계좌 오픈~클로즈 기간 밖의 셀은 회색(해당 없음)
+- 각 셀 클릭 → 해당 계좌의 해당 월 거래 목록으로 이동 (계좌 상세 + 날짜 필터)
+
+**필터 (계좌 수 많아서 필수):**
+- 은행별 필터
+- 활성/비활성 필터
+- `firstAdded=true` 필터 — "첫 거래부터 기록 중인 계좌만" (소급 입력 추적 대상)
+- 기간 필터 (표시할 연/월 범위)
+
+**기대 동작:**
+- `firstAdded=false`인 계좌는 기간 외로 표시하거나 별도 색으로 구분 (아직 소급 입력 중)
+- 거래가 0건인 월은 빈칸 또는 연한 빨강 — 누락 가능성 시각화
+- 계좌 첫 거래일(`first_transaction`)부터 마지막 거래일(`last_transaction`) 범위만 검사
+  - 그 이전/이후는 "해당 없음"으로 처리
+
+**구현 고려사항:**
+- GraphQL로 계좌별 월별 집계를 가져오려면 백엔드 annotation 필요할 수 있음
+- 또는 각 계좌의 전체 transaction 날짜 목록만 가져와서 프론트에서 월별 그룹핑 (계좌 수 × 거래 수에 따라 성능 주의)
+- 필터 적용 후 표시할 계좌 수를 20~30개로 제한 권장
 
 ---
 
