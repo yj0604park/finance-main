@@ -60,9 +60,8 @@ npx tsc -p tsconfig.app.json --noEmit  # Type check
 ## Critical Constraints
 
 **GraphQL limitations:**
-- `transactionRelay` `TransactionFilter` only supports: `id`, `date`, `account` — no `retailer` or `reviewed` filter
-- `StockTransactionNode` has no `date` field (use `BaseTimeStampModel.date` but not exposed in GraphQL)
-- No `stockTransactionRelay` query — only `createStockTransaction` mutation
+- `transactionRelay` `TransactionFilter` supports: `id`, `date`, `account`, `reviewed`, `isInternal`, `type` — no `retailer` filter
+- `StockTransactionFilter.stock` is **required** (`StockFilter!`) — always pass `stock: {}` even when not filtering by stock
 - `first` argument max = 100 (Strawberry relay hard limit)
 
 **All-data fetching**: Use `useAllTransactions` hook (`/src/hook/useAllTransactions.ts`) which auto-paginates in 100-item batches. Never use `first: 500` or higher.
@@ -92,3 +91,36 @@ npx tsc -p tsconfig.app.json --noEmit  # Type check
 - Run `npx tsc -p tsconfig.app.json --noEmit` to verify types before finishing
 - Do not create new UI components if shadcn/ui has an equivalent
 - Biome lint `ignore` key warning in `biome.json` is a pre-existing issue — non-blocking
+
+## Standard Procedures
+
+### Starting a new feature / page
+1. **Read `backend/schema.graphql`** — check what queries, mutations, and filters actually exist before writing any code. Never assume a filter or mutation is absent; verify first.
+2. **Read `docs/features.md`** — understand the intended behavior for the page.
+3. **Enumerate all required data** — list what the page needs, then map each to an existing GraphQL query/mutation or decide a new one is needed.
+4. **Prefer server-side filtering** — if a filter field exists in the GraphQL schema, use it. Fall back to `useAllTransactions` client-side filtering only when no server-side filter is available.
+5. Write the `.graphql` query file → `npm run codegen` → implement the component.
+6. `npx tsc -p tsconfig.app.json --noEmit` before finishing.
+
+### Adding a backend GraphQL mutation/query
+1. Edit `backend/money/types/*.py` to add the new Input type or Node field.
+2. Edit `backend/money/schema.py` to wire up the mutation/query.
+3. Re-export schema from the running container:
+   ```bash
+   docker exec finance_local_django bash -c \
+     "DATABASE_URL=postgres://\$POSTGRES_USER:\$POSTGRES_PASSWORD@\$POSTGRES_HOST:\$POSTGRES_PORT/\$POSTGRES_DB \
+      CELERY_BROKER_URL=\$REDIS_URL \
+      python manage.py export_schema money.schema:schema --path /app/schema.graphql"
+   ```
+   (The container's `/app` is a volume mount of `backend/`, so this writes directly to `backend/schema.graphql`.)
+4. `cp backend/schema.graphql frontend-v2/schema.graphql`
+5. Add the corresponding `.graphql` query/mutation in `frontend-v2/src/graphql/queries/`.
+6. `cd frontend-v2 && npm run codegen`
+7. `npx tsc -p tsconfig.app.json --noEmit`
+
+### Migrating Django views to frontend (feature audit)
+When asked to port or audit features:
+1. Read **all** files in `backend/money/views/` — list every view/endpoint.
+2. Cross-reference against `src/routes.tsx` — identify missing routes.
+3. For each missing page, check `backend/schema.graphql` for the relevant query/mutation before implementing.
+4. Implement pages in dependency order (shared components first).
