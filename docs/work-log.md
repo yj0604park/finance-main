@@ -27,7 +27,7 @@
 
 ### Known blocker
 
-- `npm run lint` still fails before checking source because `biome.json` uses the old `files.ignore` key. A config migration should be done separately because switching to `files.includes` exposes many pre-existing formatting/import-order issues across unrelated files.
+- Resolved later: `npm run lint` previously failed before checking source because `biome.json` used the old `files.ignore` key. The config is now migrated to Biome v2 `files.includes`.
 
 ### Follow-up pass
 
@@ -113,6 +113,24 @@
 
 ### Biome warning cleanup validation
 
+- `cd frontend-v2 && npm run lint -- --max-diagnostics=80`
+- `cd frontend-v2 && npx tsc -p tsconfig.app.json --noEmit`
+- `cd frontend-v2 && npm test -- --run --reporter=dot`
+- `cd frontend-v2 && npm run build`
+
+### Schema / stock pagination cleanup
+
+- Rechecked root/frontend/backend status and upstream counts before starting.
+- Found stale guidance in `CLAUDE.md`: `StockTransactionFilter.stock` / `account` are now optional in backend code, but exported schema and docs still said they were required.
+- Re-exported `backend/schema.graphql`, copied it to `frontend-v2/schema.graphql`, and regenerated frontend GraphQL types.
+- Removed unnecessary `stock: {}` from stock transaction GraphQL operations.
+- Stabilized remaining stock-related auto-pagination effects by depending on `hasNextPage` / `endCursor` primitives instead of `pageInfo` objects.
+- Updated stale Biome blocker documentation now that lint runs cleanly.
+
+### Schema / stock pagination validation
+
+- `docker compose -f backend/local.yml exec -T django bash -lc 'source /entrypoint && python manage.py check'`
+- `cd frontend-v2 && npm run codegen`
 - `cd frontend-v2 && npm run lint -- --max-diagnostics=80`
 - `cd frontend-v2 && npx tsc -p tsconfig.app.json --noEmit`
 - `cd frontend-v2 && npm test -- --run --reporter=dot`

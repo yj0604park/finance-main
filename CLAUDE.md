@@ -70,7 +70,7 @@ npx tsc -p tsconfig.app.json --noEmit  # Type check
 
 **GraphQL limitations:**
 - `transactionRelay` `TransactionFilter` supports: `id`, `date`, `account`, `reviewed`, `isInternal`, `type` — no `retailer` filter
-- `StockTransactionFilter.stock` is **required** (`StockFilter!`) — always pass `stock: {}` even when not filtering by stock
+- `StockTransactionFilter.stock` and `account` are optional. If filtering by account, `AccountFilter.bank` is still required, so use `account: { bank: {}, id: { exact: $accountId } }`.
 - `first` argument max = 100 (Strawberry relay hard limit)
 
 **All-data fetching**: Use `useAllTransactions` hook (`/src/hook/useAllTransactions.ts`) which auto-paginates in 100-item batches. Never use `first: 500` or higher.
@@ -99,7 +99,6 @@ npx tsc -p tsconfig.app.json --noEmit  # Type check
 - Run `npm run codegen` after editing any `.graphql` file
 - Run `npx tsc -p tsconfig.app.json --noEmit` to verify types before finishing
 - Do not create new UI components if shadcn/ui has an equivalent
-- Biome lint `ignore` key warning in `biome.json` is a pre-existing issue — non-blocking
 
 ## Standard Procedures
 

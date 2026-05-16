@@ -15,6 +15,7 @@
 - Lint config errors are different from source lint failures; fix config in isolation to avoid hiding behavior changes inside formatting churn.
 - Cursor pagination works best as a small state hook (`cursor`, `currentPage`, `canPrev`, `reset`, `goNext`, `goPrev`) while each page keeps query-specific variables and side effects local.
 - Hook refactors should get focused hook tests before wider page rewrites; this catches cursor history edge cases without requiring GraphQL mocks.
+- Auto-fetch effects should depend on stable `pageInfo` primitives (`hasNextPage`, `endCursor`) rather than the whole `pageInfo` object.
 - Dev services should use fixed documented ports plus `strictPort`; silent Vite port fallback is a common source of cross-project confusion.
 - When running Django management commands in the local compose container, use `bash -lc 'source /entrypoint && ...'`; direct `docker compose exec django python manage.py ...` misses required env vars such as `DATABASE_URL`.
 - Account review toggles should update optimistic state from the current displayed reviewed value, not assume the default is unchecked; otherwise bidirectional toggles can appear to do nothing for already-reviewed rows.
@@ -22,3 +23,4 @@
 - Biome v2 uses `files.includes` exclusions instead of the old `files.ignore` key. Tailwind v4 CSS also needs `css.parser.tailwindDirectives: true`.
 - Keep numeric validation on parsed numbers with `Number.isNaN` / `Number.isFinite`; global `isNaN` / `isFinite` coerces values and Biome flags it.
 - Tests that need synthetic cookies should override `document.cookie` with a helper instead of assigning directly in each test. This keeps intent clear and avoids repeated lint suppression.
+- After backend GraphQL filter type changes, export `backend/schema.graphql`, copy it to `frontend-v2/schema.graphql`, then run frontend codegen before updating operations.
