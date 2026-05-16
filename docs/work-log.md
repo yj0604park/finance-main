@@ -80,3 +80,24 @@
 - Initial backend `manage.py check` failed because direct `docker compose exec` did not load entrypoint-provided env vars (`DATABASE_URL`).
 - `docker compose -f backend/local.yml exec -T django bash -lc 'source /entrypoint && python manage.py check && python -m compileall money/signals.py'`
 - `docker compose -f backend/local.yml exec -T django bash -lc 'source /entrypoint && pytest money/tests/test_transaction.py::TestTransactionModel::test_account_last_transaction_updates_on_save_and_delete -q'`
+
+### Commit / Biome pass
+
+- Created backend commits:
+  - `61e83c1 fix: maintain account last transaction`
+  - `1948727 chore: update local dev origins`
+  - `87d5766 feat: add transaction update mutation`
+- Created frontend commits:
+  - `a548ae7 feat: improve finance frontend pagination`
+  - `e7a391d chore: migrate Biome config`
+- Created root commit:
+  - `bac60dd chore: document finance cleanup`
+- Migrated Biome v2 config from `files.ignore` to `files.includes` and enabled Tailwind CSS parser directives.
+- Applied Biome safe fixes and small manual fixes for remaining lint errors.
+
+### Biome validation
+
+- `cd frontend-v2 && npm run lint`
+- `cd frontend-v2 && npx tsc -p tsconfig.app.json --noEmit`
+- `cd frontend-v2 && npm test -- --run --reporter=dot`
+- `cd frontend-v2 && npm run build`
