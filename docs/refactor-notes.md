@@ -7,7 +7,6 @@
 - **GraphQL codegen discipline:** run codegen only after checking all modified `.graphql` files, because generated output can include unrelated uncommitted query/schema changes.
 - **Submodule commit hygiene:** check root, frontend, and backend status separately before committing; commit submodule changes first, then update root submodule pointers.
 - **Review UX:** replace one-click review toggles with type-aware confirmation/linking flows for internal transfers, FX, income, and stock transactions.
-- **Biome warnings:** lint now runs, but warnings remain for cookie tests/sidebar cookie persistence, non-null assertions in tests, and `isNaN`/`isFinite` usage in form calculations.
 
 ## Implementation notes from this pass
 
@@ -21,3 +20,5 @@
 - Account review toggles should update optimistic state from the current displayed reviewed value, not assume the default is unchecked; otherwise bidirectional toggles can appear to do nothing for already-reviewed rows.
 - `Account.last_transaction` is now signal-maintained, but bulk imports that call `.save()` per row can still trigger repeated recalculation. If imports become slow, add a batch recompute path that updates affected accounts once after import.
 - Biome v2 uses `files.includes` exclusions instead of the old `files.ignore` key. Tailwind v4 CSS also needs `css.parser.tailwindDirectives: true`.
+- Keep numeric validation on parsed numbers with `Number.isNaN` / `Number.isFinite`; global `isNaN` / `isFinite` coerces values and Biome flags it.
+- Tests that need synthetic cookies should override `document.cookie` with a helper instead of assigning directly in each test. This keeps intent clear and avoids repeated lint suppression.

@@ -101,3 +101,19 @@
 - `cd frontend-v2 && npx tsc -p tsconfig.app.json --noEmit`
 - `cd frontend-v2 && npm test -- --run --reporter=dot`
 - `cd frontend-v2 && npm run build`
+
+### Biome warning cleanup
+
+- Rechecked root, frontend, and backend status; all were clean and even with upstream before starting.
+- Removed remaining frontend Biome diagnostics:
+  - replaced global `isNaN` / `isFinite` with `Number.isNaN` / `Number.isFinite`
+  - removed non-null assertions from transaction table and income aggregation code
+  - replaced repeated test `document.cookie` assignment with a helper
+  - documented the intentional sidebar cookie write with a targeted Biome ignore
+
+### Biome warning cleanup validation
+
+- `cd frontend-v2 && npm run lint -- --max-diagnostics=80`
+- `cd frontend-v2 && npx tsc -p tsconfig.app.json --noEmit`
+- `cd frontend-v2 && npm test -- --run --reporter=dot`
+- `cd frontend-v2 && npm run build`
