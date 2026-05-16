@@ -27,7 +27,7 @@
 ## Frontend
 
 - [ ] P0: query-driven page loading/error state 잔여 점검
-  - Accounts, AccountDetails, Transactions, Income, AmazonOrders, Dashboard Finance
+  - Accounts, AccountDetails, Transactions, AmazonOrders, Dashboard Finance
 - [ ] P1: Pagination UX 개선
   - 대형 목록에서 load-more/infinite-scroll 필요 여부 재검토
 - [ ] P1: Mutation UX 개선

@@ -24,3 +24,4 @@
 - Keep numeric validation on parsed numbers with `Number.isNaN` / `Number.isFinite`; global `isNaN` / `isFinite` coerces values and Biome flags it.
 - Tests that need synthetic cookies should override `document.cookie` with a helper instead of assigning directly in each test. This keeps intent clear and avoids repeated lint suppression.
 - After backend GraphQL filter type changes, export `backend/schema.graphql`, copy it to `frontend-v2/schema.graphql`, then run frontend codegen before updating operations.
+- Query-driven pages should surface GraphQL errors with the shared `ErrorAlert` instead of rendering empty tables from `data ?? []`; empty state should mean "loaded successfully with no rows".

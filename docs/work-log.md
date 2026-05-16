@@ -142,3 +142,10 @@
 - Replaced the overly detailed/stale feature spec with a concise route-based overview.
 - Removed stale wording around account review toggles, transaction detail being a design-only page, audit being unimplemented, old retailer cache notes, and old stock filter requirements.
 - Kept only the main implemented surfaces and the largest missing features (`type-aware review`, `/spending-trends`, category exclusion, exchange creation, E2E smoke tests).
+
+### Income query state cleanup
+
+- Rechecked root/frontend/backend status before starting; root already had one local docs commit, frontend/backend were clean and even with upstream.
+- Chose the smallest P0 cleanup from `TODO.md`: query-driven loading/error state for Income pages.
+- Added shared `ErrorAlert` handling to `/income` and `/income/:year` so GraphQL failures no longer render as empty salary tables.
+- Removed Income from the remaining query state cleanup list and recorded the pattern in `docs/refactor-notes.md`.
