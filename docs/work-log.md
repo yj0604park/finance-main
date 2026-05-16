@@ -135,3 +135,10 @@
 - `cd frontend-v2 && npx tsc -p tsconfig.app.json --noEmit`
 - `cd frontend-v2 && npm test -- --run --reporter=dot`
 - `cd frontend-v2 && npm run build`
+
+### Documentation consistency audit
+
+- Compared frontend routes in `frontend-v2/src/routes.tsx` with `docs/features.md`.
+- Replaced the overly detailed/stale feature spec with a concise route-based overview.
+- Removed stale wording around account review toggles, transaction detail being a design-only page, audit being unimplemented, old retailer cache notes, and old stock filter requirements.
+- Kept only the main implemented surfaces and the largest missing features (`type-aware review`, `/spending-trends`, category exclusion, exchange creation, E2E smoke tests).
