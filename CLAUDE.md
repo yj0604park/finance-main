@@ -10,24 +10,24 @@ Personal finance management app. Django backend + React frontend.
 - Backend: Django + Strawberry GraphQL + PostgreSQL
 - Frontend: React + TypeScript + Tailwind CSS (v4) + shadcn/ui at `/frontend-v2`
 - Task Queue: Celery + Redis
-- Containerization: Docker (`local.yml`)
+- Containerization: Docker (`backend/local.yml` from repo root)
 
 ## Development Commands
 
 ### Backend (Docker)
 ```bash
-# Start all services (runs on port 58000)
-docker compose -f local.yml up -d
+# Start all services (runs Django on port 58000)
+docker compose -f backend/local.yml up -d
 
 # Django management
-docker compose -f local.yml run --rm django python manage.py migrate
-docker compose -f local.yml run --rm django python manage.py createsuperuser
+docker compose -f backend/local.yml run --rm django python manage.py migrate
+docker compose -f backend/local.yml run --rm django python manage.py createsuperuser
 ```
 
 ### Frontend (`/frontend-v2`)
 ```bash
 cd frontend-v2
-npm run dev        # Dev server (Vite, default port 5173)
+npm run dev        # Dev server (Vite, fixed port 3000; strictPort=true)
 npm run build      # Production build
 npm run lint       # Biome lint
 npm run codegen    # Regenerate GraphQL types from schema
@@ -35,6 +35,15 @@ npx tsc -p tsconfig.app.json --noEmit  # Type check
 ```
 
 **Vite proxy**: `/money`, `/accounts`, `/auth-token`, `/graphql` → `http://localhost:58000`
+
+**Local ports:**
+- Frontend Vite: `3000`
+- Django: `58000`
+- Adminer: `58001`
+- Flower: `5555`
+- Backend docs: `9000`
+- Do not use `5173` for finance; it is free for other Vite apps.
+- Full local port map: `docs/ports.md`
 
 ## Key Architecture
 
